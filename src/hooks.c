@@ -17,7 +17,7 @@
 #include "fakedev.h"
 
 #ifndef RTLD_NEXT
-#	define RTLD_NEXT -1
+#    define RTLD_NEXT -1
 #endif
 
 /*
@@ -35,23 +35,23 @@ typedef int (*nftw_fn)(const char *, int (*)(const char *, const struct stat *, 
 
 nftw_fn
 HIDDEN get_nftw() {
-	return dlsym(RTLD_NEXT, "nftw");
+    return dlsym(RTLD_NEXT, "nftw");
 }
 
 fgets_fn
 HIDDEN get_fgets() {
-	return dlsym(RTLD_NEXT, "fgets");
+    return dlsym(RTLD_NEXT, "fgets");
 }
 
 #if LOG
 fopen_fn
 HIDDEN get_fopen() {
-	return dlsym(RTLD_NEXT, "fopen");
+    return dlsym(RTLD_NEXT, "fopen");
 }
 
 fclose_fn
 HIDDEN get_fclose() {
-	return dlsym(RTLD_NEXT, "fclose");
+    return dlsym(RTLD_NEXT, "fclose");
 }
 #endif
 
@@ -67,12 +67,12 @@ HIDDEN get_fclose() {
 #if LOG
 FILE *
 fopen(const char *filename, const char *mode) {
-	FILE *retval = get_fopen()(filename, mode);
-	log(LOG_DEBUG, "fopen %s %08x '%s'", mode, retval, filename);
-	if (strstr(filename, "/sys/devices")) {
-		log(LOG_WARNING, "fopen /sys/devices is accessed!");
-	}
-	return retval;
+    FILE *retval = get_fopen()(filename, mode);
+    log(LOG_DEBUG, "fopen %s %08x '%s'", mode, retval, filename);
+    if (strstr(filename, "/sys/devices")) {
+        log(LOG_WARNING, "fopen /sys/devices is accessed!");
+    }
+    return retval;
 }
 #endif
 
@@ -81,65 +81,67 @@ fopen(const char *filename, const char *mode) {
  */
 int
 EXPORT nftw(const char *path,
-		 int (*fn)(const char *, const struct stat *, int, struct FTW *),
-		 int maxfds, int flags) {
+         int (*fn)(const char *, const struct stat *, int, struct FTW *),
+         int maxfds, int flags) {
 
-	log(LOG_INFO, "nftw %s", path);
-	if (!strncmp(path, "/sys/devices", 12)) {
-		if (0 != fakedev()) {
-			log(LOG_INFO, "devinfo success");
-			return get_nftw()(fakedev(), fn, maxfds, flags);
-		} else {
-			log(LOG_ERR, "devinfo fail");
-		}
-	}
-	return get_nftw()(path, fn, maxfds, flags);
+    log(LOG_INFO, "nftw %s", path);
+    if (!strncmp(path, "/sys/devices", 12)) {
+        if (0 != fakedev()) {
+            log(LOG_INFO, "devinfo success");
+            return get_nftw()(fakedev(), fn, maxfds, flags);
+        } else {
+            log(LOG_ERR, "devinfo fail");
+        }
+    }
+    return get_nftw()(path, fn, maxfds, flags);
 }
 
 /*
- *	"TracerPid:\t%d"
- *	cathook
+ *    "TracerPid:\t%d"
+ *    cathook
  */
 EXPORT char *
 fgets(char *s, int n, FILE *stream) {
-	char *buffer = malloc(n);
-	char *retval = get_fgets()(buffer, n, stream);
+    char *buffer = malloc(n);
+    char *retval = get_fgets()(buffer, n, stream);
 
-	if (retval == buffer) {
-		retval = s;
+    if (retval == buffer) {
+        retval = s;
 
-		int tracerPID = 0;
+        int tracerPID = 0;
 
-		if (sscanf(buffer, "TracerPid:\t%d", &tracerPID)) {
-			log(LOG_WARNING, "tracer (%d)", tracerPID);
-			strcpy(buffer, "TracerPid:\t0\n");
-		}
+        if (sscanf(buffer, "TracerPid:\t%d", &tracerPID)) {
+            log(LOG_WARNING, "tracer (%d)", tracerPID);
+            strcpy(buffer, "TracerPid:\t0\n");
+        }
 
-		while (strstr(buffer, "cathook") || strstr(buffer, "libvpcfs.so")) {
-			log(LOG_WARNING, "intercepted '%s'", buffer);
-			retval = get_fgets()(buffer, n, stream);
-			if (sscanf(buffer, "TracerPid:\t%d", &tracerPID)) {
-				log(LOG_WARNING, "tracer (%d)", tracerPID);
-				strcpy(buffer, "TracerPid:\t0\n");
-			}
-			if (retval == buffer) {
-				retval = s;
-			} else {
-				return 0;
-			}
-		}
+        while (strstr(buffer, "cathook") || strstr(buffer, "libvpcfs.so")) {
+            log(LOG_WARNING, "intercepted '%s'", buffer);
+            retval = get_fgets()(buffer, n, stream);
+            if (sscanf(buffer, "TracerPid:\t%d", &tracerPID)) {
+                log(LOG_WARNING, "tracer (%d)", tracerPID);
+                strcpy(buffer, "TracerPid:\t0\n");
+            }
+            if (retval == buffer) {
+                retval = s;
+            } else {
+                free(buffer);
+                free(retval);
+                return 0;
+            }
+        }
 
-	}
+    }
 
-	memcpy(s, buffer, n);
-	free(buffer);
-	return retval;
+    memcpy(s, buffer, n);
+    free(buffer);
+    return retval;
 }
 
 #if LOG
 /*int
 fclose(FILE *stream) {
-	log("fclose %08x", stream);
-	return get_fclose()(stream);
+    log("fclose %08x", stream);
+    return get_fclose()(stream);
 }*/
 #endif
