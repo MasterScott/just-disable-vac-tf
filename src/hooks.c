@@ -85,7 +85,7 @@ EXPORT nftw(const char *path,
 		 int maxfds, int flags) {
 
 	log(LOG_INFO, "nftw %s", path);
-	if (!strcmp(path, "/sys/devices") || !strcmp(path, "/sys/devices/")) {
+	if (!strncmp(path, "/sys/devices", 12)) {
 		if (0 != fakedev()) {
 			log(LOG_INFO, "devinfo success");
 			return get_nftw()(fakedev(), fn, maxfds, flags);
